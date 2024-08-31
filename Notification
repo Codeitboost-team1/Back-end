@@ -1,0 +1,38 @@
+// models/notification.js
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/sequelize');
+const User = require('./user');
+
+const Notification = sequelize.define('Notification', {
+  recipientId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id',
+    }
+  },
+  senderId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id',
+    }
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,  // 예: 'follow', 'like', 'comment'
+  },
+  message: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  read: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  }
+}, { timestamps: true });
+
+User.hasMany(Notification, { foreignKey: 'recipientId' });
+Notification.belongsTo(User, { foreignKey: 'recipientId' });
+
+module.exports = Notification;
