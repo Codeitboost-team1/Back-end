@@ -1,0 +1,26 @@
+// models/follow.js
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/sequelize');
+const User = require('./user');
+
+const Follow = sequelize.define('Follow', {
+  followerId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id',
+    }
+  },
+  followedId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id',
+    }
+  }
+}, { timestamps: true });
+
+User.belongsToMany(User, { as: 'Followers', through: Follow, foreignKey: 'followedId' });
+User.belongsToMany(User, { as: 'Following', through: Follow, foreignKey: 'followerId' });
+
+module.exports = Follow;
