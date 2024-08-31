@@ -1,0 +1,35 @@
+// routes/notifications.js
+const express = require('express');
+const { authMiddleware } = require('../middleware/auth');
+const Notification = require('../models/notification');
+
+const router = express.Router();
+
+// 알림 조회
+router.get('/', authMiddleware, async (req, res) => {
+  const recipientId = req.user.userId;
+
+  try {
+    const notifications = await Notification.findAll({ where: { recipientId, read: false } });
+    res.json(notifications);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 알림 확인 (읽음 처리)
+router.put('/:id/read', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const notification = await Notification.findByPk(id);
+    notification.read = true;
+    await notification.save();
+
+    res.json(notification);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+module.exports = router;
