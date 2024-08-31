@@ -1,0 +1,35 @@
+// routes/follow.js
+const express = require('express');
+const { authMiddleware } = require('../middleware/auth');
+const Follow = require('../models/follow');
+const User = require('../models/user');
+
+const router = express.Router();
+
+// 팔로우하기
+router.post('/:id/follow', authMiddleware, async (req, res) => {
+  const followerId = req.user.userId;
+  const followedId = req.params.id;
+
+  try {
+    const follow = await Follow.create({ followerId, followedId });
+    res.status(201).json(follow);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// 언팔로우하기
+router.delete('/:id/unfollow', authMiddleware, async (req, res) => {
+  const followerId = req.user.userId;
+  const followedId = req.params.id;
+
+  try {
+    await Follow.destroy({ where: { followerId, followedId } });
+    res.json({ message: 'Unfollowed successfully' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+module.exports = router;
