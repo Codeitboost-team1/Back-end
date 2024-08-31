@@ -1,0 +1,23 @@
+const Notification = require('../models/notification');
+
+// 팔로우하기
+router.post('/:id/follow', authMiddleware, async (req, res) => {
+  const followerId = req.user.userId;
+  const followedId = req.params.id;
+
+  try {
+    const follow = await Follow.create({ followerId, followedId });
+
+    // 알림 생성
+    await Notification.create({
+      recipientId: followedId,
+      senderId: followerId,
+      type: 'follow',
+      message: `User ${followerId} followed you.`,
+    });
+
+    res.status(201).json(follow);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
