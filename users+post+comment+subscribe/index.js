@@ -11,14 +11,18 @@ mongoose.connect('mongodb://localhost:27017/piecehouseDB')
 
 const express = require('express');
 const bcrypt  = require('bcrypt');
-const User    = require('./models/User');
-const Post    = require('./models/post');
+const router  = express.Router();
+const User     = require('./models/User');
+const Post     = require('./models/post');
 const PostLike = require('./models/Post_like');
+const Comment  = require('./models/Comment');
+const Subscription = require('./models/Subscription');
 const app = express();
 const port = 3000;
 
 // JSON 파싱을 위한 미들웨어
 app.use(express.json());
+app.use(router);
 
 // 회원가입 라우트
 app.post('/api/register', async (req, res) => {
@@ -104,20 +108,38 @@ app.post('/api/posts', async (req, res) => {
   }
 });
 
-// 게시글 조회 라우트
+  // 게시글 조회 라우트
 app.get('/api/posts/:id', async (req, res) => {
-  const { id } = req.params;
+  const { id }           = req.params;
+  const requestingUserId = req.query.userId;  // 쿼리 파라미터에서 요청자의 사용자 ID를 가져옵니다
 
   try {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: 'Invalid post ID format' });
     }
+
     const post = await Post.findById(id).populate('user_id', 'name email');
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
+      // 게시글 작성자 ID
+    const postAuthorId = post.user_id._id;
+
+      // 요청자가 게시글 작성자의 구독자 목록에 있는지 확인
+    const isSubscriber = await Subscription.findOne({
+      follower_id : requestingUserId,
+      following_id: postAuthorId
+    });
+
+      // 자신을 포함한 구독자 목록에 있는지 확인
+    const isSelfSubscriber = requestingUserId === postAuthorId;
+
+    if (!isSubscriber && !isSelfSubscriber) {
+      return res.status(403).json({ message: 'You are not subscribed to this user' });
+    }
+
     res.status(200).json(post);
   } catch (error) {
-    console.error('Error fetching post:', error); // 에러 로그
+    console.error('Error fetching post:', error);  // 에러 로그
     res.status(500).json({ message: 'Error fetching post' });
   }
 });
@@ -202,6 +224,108 @@ app.post('/api/posts/:id/like', async (req, res) => {
         console.error('Error liking post:', error); // 에러 로그
         res.status(500).json({ message: 'Error liking post' });
     }
+});
+
+// 댓글 작성 라우트
+app.post('/api/posts/:postId/comments', async (req, res) => {
+  const { postId } = req.params;
+  const { userId, content, parentId } = req.body;
+
+  try {
+    // 게시물 확인
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    // 사용자 확인
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // 댓글 생성
+    const newComment = new Comment({
+      postId,
+      userId,
+      content,
+      parentId: parentId || null  // 부모 댓글이 없는 경우 null로 설정
+    });
+
+    // 댓글 저장
+    await newComment.save();
+    res.status(201).json({ message: 'Comment created successfully', comment: newComment });
+  } catch (error) {
+    console.error('Error creating comment:', error);
+    res.status(500).json({ message: 'Error creating comment' });
+  }
+});
+
+// 댓글 조회 라우트 (댓글과 대댓글 모두 조회)
+app.get('/api/posts/:postId/comments', async (req, res) => {
+  const { postId } = req.params;
+
+  try {
+    // 게시물 확인
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    // 댓글과 대댓글 조회
+    const comments = await Comment.find({ postId }).populate('userId', 'name email').populate('parentId');
+    res.status(200).json(comments);
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    res.status(500).json({ message: 'Error fetching comments' });
+  }
+});
+
+
+// 구독 생성 라우트
+router.post('/api/subscribe', async (req, res) => {
+  const { follower_id, following_id } = req.body;
+
+  try {
+      const existingSubscription = await Subscription.findOne({ follower_id, following_id });
+      if (existingSubscription) {
+          return res.status(400).json({ message: 'Already subscribed to this user' });
+      }
+
+      const newSubscription = new Subscription({ follower_id, following_id });
+      await newSubscription.save();
+
+      res.status(201).json({ message: 'Subscribed successfully' });
+  } catch (error) {
+      console.error('Error subscribing:', error);
+      res.status(500).json({ message: 'Error subscribing to user' });
+  }
+});
+
+// 구독 취소 라우트
+router.delete('/api/unsubscribe', async (req, res) => {
+  const { follower_id, following_id } = req.body;
+
+  try {
+      const subscription = await Subscription.findOneAndDelete({ follower_id, following_id });
+      if (!subscription) {
+          return res.status(404).json({ message: 'Subscription not found' });
+      }
+
+      res.status(200).json({ message: 'Unsubscribed successfully' });
+  } catch (error) {
+      console.error('Error unsubscribing:', error);
+      res.status(500).json({ message: 'Error unsubscribing from user' });
+  }
+});
+
+module.exports  = router;
+
+// 구독자 조회 라우트
+router.get('/api/subscribers/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+      const subscribers = await Subscription.find({ following_id: userId }).populate('follower_id', 'name email');
+      res.status(200).json(subscribers);
+  } catch (error) {
+      console.error('Error fetching subscribers:', error);
+      res.status(500).json({ message: 'Error fetching subscribers' });
+  }
 });
 
 app.listen(port, () => {
