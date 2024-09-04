@@ -1,13 +1,18 @@
 const mongoose = require('mongoose');
 
 // MongoDB 연결 설정
-mongoose.connect('mongodb://localhost:27017/piecehouseDB')
+// MongoDB Atlas 연결 설정
+mongoose.connect('mongodb+srv://gpyo0111:tjrlvy01122@codeitboost.qqddh.mongodb.net/codeitboost?retryWrites=true&w=majority', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
   .then(() => {
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB Atlas');
   })
   .catch(err => {
-    console.error('Could not connect to MongoDB', err);
+    console.error('Could not connect to MongoDB Atlas', err);
   });
+
 
 const express = require('express');
 const bcrypt  = require('bcrypt');
