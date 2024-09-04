@@ -14,7 +14,8 @@ const bcrypt  = require('bcrypt');
 const User    = require('./models/User');
 const Post    = require('./models/post');
 const PostLike = require('./models/Post_like');
-const Comment = require('./models/Comment')
+const Comment = require('./models/Comment');
+const CommentLike = require('./models/CommentLike');
 const app = express();
 const port = 3000;
 
@@ -251,6 +252,91 @@ app.get('/api/posts/:postId/comments', async (req, res) => {
   } catch (error) {
     console.error('Error fetching comments:', error);
     res.status(500).json({ message: 'Error fetching comments' });
+  }
+});
+app.post('/api/posts/:postId/comments/:commentId/like', async (req, res) => {
+  const { commentId } = req.params;
+  const { userId } = req.body;
+
+  if (!commentId || !userId) {
+    return res.status(400).json({ message: 'CommentId and UserId are required' });
+  }
+
+  try {
+    // 댓글 확인
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // 좋아요 중복 체크
+    const existingLike = await CommentLike.findOne({ commentId, userId });
+    if (existingLike) {
+      return res.status(400).json({ message: 'You already liked this comment' });
+    }
+
+    // 새로운 좋아요 생성
+    const newLike = new CommentLike({
+      commentId,
+      userId,
+    });
+
+    // 좋아요 저장
+    await newLike.save();
+
+    // 댓글의 좋아요 수 증가
+    await Comment.findByIdAndUpdate(commentId, { $inc: { likes: 1 } });
+
+    res.status(201).json({ message: 'Comment liked successfully' });
+  } catch (error) {
+    console.error('Error liking comment:', error);
+    res.status(500).json({ message: 'Error liking comment' });
+  }
+});
+
+
+
+// 댓글 좋아요 제거 
+app.delete('/api/comments/:commentId/like', async (req, res) => {
+  const { commentId } = req.params;
+  const { userId } = req.body;
+
+  try {
+    // 댓글 확인
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // 좋아요 확인
+    const existingLike = await CommentLike.findOne({ commentId, userId });
+    if (!existingLike) return res.status(404).json({ message: 'Like not found' });
+
+    // 좋아요 제거
+    await CommentLike.findByIdAndDelete(existingLike._id);
+
+    // 댓글의 좋아요 수 감소 
+    await Comment.findByIdAndUpdate(commentId, { $inc: { likes: -1 } });
+
+    res.status(200).json({ message: 'Comment unliked successfully' });
+  } catch (error) {
+    console.error('Error unliking comment:', error);
+    res.status(500).json({ message: 'Error unliking comment' });
+  }
+});
+
+// 댓글 좋아요 수 조회 
+app.get('/api/comments/:commentId/likes', async (req, res) => {
+  const { commentId } = req.params;
+
+  try {
+    // 댓글 확인
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // 좋아요 수 조회
+    const likesCount = await CommentLike.countDocuments({ commentId });
+    
+    res.status(200).json({ likes: likesCount });
+  } catch (error) {
+    console.error('Error fetching comment likes:', error);
+    res.status(500).json({ message: 'Error fetching comment likes' });
   }
 });
 
