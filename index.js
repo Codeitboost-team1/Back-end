@@ -105,6 +105,56 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// 프로필 조회 라우트
+app.get('/api/profile/:userId', authenticateJWT, async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findById(userId).select('username feedName bio profilePicture');
+    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // 게시물 수와 구독자 수를 포함하려면 추가적인 모델에서 데이터를 조회해야 함
+    const postCount = await Post.countDocuments({ user_id: userId });
+    const subscriberCount = await Subscription.countDocuments({ following_id: userId });
+
+    res.status(200).json({
+      username: user.username,
+      feedName: user.feedName,
+      bio: user.bio,
+      profilePicture: user.profilePicture,
+      postCount,
+      subscriberCount
+    });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ message: 'Error fetching profile' });
+  }
+});
+
+// 프로필 설정 라우트
+app.put('/api/profile', authenticateJWT, async (req, res) => {
+  const { username, feedName, bio, profilePicture } = req.body;
+  const userId = req.user.id;  // JWT에서 인증된 사용자 ID를 가져옵니다
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(userId, {
+      username,
+      feedName,
+      bio,
+      profilePicture
+    }, { new: true });
+
+    if (!updatedUser) return res.status(404).json({ message: 'User not found' });
+
+    res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+});
+
+
 // 게시글 작성 라우트
 app.post('/api/posts', authenticateJWT, async (req, res) => {
   const { title, content, image_name, memory_timeline, bgm, userId } = req.body;
