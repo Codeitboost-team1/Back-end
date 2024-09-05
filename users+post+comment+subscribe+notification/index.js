@@ -101,7 +101,19 @@ app.post('/api/posts', async (req, res) => {
 
       // Step 3: 게시글 저장
     await newPost.save();
-    res.status(201).json({ message: 'sPost created successfully', post: newPost });
+
+      // 작성자를 구독한 사용자들에게 알림 보내기
+    const subscribers = await Subscription.find({ following_id: userId }).populate('follower_id');
+    subscribers.forEach(async (subscription) => {
+      const notification = new Notification({
+        user: subscription.follower_id._id,
+        type: 'new_post',
+        message: `${author.name}님이 새로운 게시글을 작성했습니다.`,
+      });
+      await notification.save();
+    });
+
+    res.status(201).json({ message: 'Post created successfully', post: newPost });
   } catch (error) {
     console.error('Error creating post:', error);
     res.status(500).json({ message: 'Error creating post' });
@@ -126,12 +138,12 @@ app.get('/api/posts/:id', async (req, res) => {
 
       // 요청자가 게시글 작성자의 구독자 목록에 있는지 확인
     const isSubscriber = await Subscription.findOne({
-      follower_id : requestingUserId,
-      following_id: postAuthorId
+      follower_id : postAuthorId,
+      following_id: requestingUserId
     });
 
       // 자신을 포함한 구독자 목록에 있는지 확인
-    const isSelfSubscriber = requestingUserId === postAuthorId;
+    const isSelfSubscriber = postAuthorId.equals(requestingUserId);
 
     if (!isSubscriber && !isSelfSubscriber) {
       return res.status(403).json({ message: 'You are not subscribed to this user' });
@@ -195,61 +207,81 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
-// 게시글 좋아요 라우트
+  // 게시글 좋아요 라우트
 app.post('/api/posts/:id/like', async (req, res) => {
-    const { id } = req.params;
-    const { userId } = req.body;
+  const { id }     = req.params;
+  const { userId } = req.body;
 
-    try {
-        // 좋아요 중복 체크
-        const existingLike = await PostLike.findOne({ post_id: id, user_id: userId });
-        if (existingLike) {
-            return res.status(400).json({ message: 'You already liked this post' });
-        }
-
-        // 새로운 좋아요 생성
-        const newLike = new PostLike({
-            post_id: id,
-            user_id: userId,
-        });
-
-        // 좋아요 저장
-        await newLike.save();
-
-        // 게시글의 좋아요 수 증가
-        await Post.findByIdAndUpdate(id, { $inc: { likes: 1 } });
-        
-        res.status(201).json({ message: 'Post liked successfully' });
-    } catch (error) {
-        console.error('Error liking post:', error); // 에러 로그
-        res.status(500).json({ message: 'Error liking post' });
+  try {
+    const existingLike = await PostLike.findOne({ post_id: id, user_id: userId });
+    if (existingLike) {
+      return res.status(400).json({ message: 'You already liked this post' });
     }
+
+    const newLike = new PostLike({
+      post_id: id,
+      user_id: userId,
+    });
+
+    await newLike.save();
+    await Post.findByIdAndUpdate(id, { $inc: { likes: 1 } });
+
+      // 게시글 작성자에게 알림 전송
+    const post         = await Post.findById(id).populate('user_id');
+    const notification = new Notification({
+      user   : post.user_id._id,
+      type   : 'like',
+      message: `${userId}님이 당신의 게시글에 좋아요를 눌렀습니다.`,
+    });
+    await notification.save();
+
+    res.status(201).json({ message: 'Post liked successfully' });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ message: 'Error liking post' });
+  }
 });
 
-// 댓글 작성 라우트
+  // 댓글 작성 라우트
 app.post('/api/posts/:postId/comments', async (req, res) => {
-  const { postId } = req.params;
+  const { postId }                    = req.params;
   const { userId, content, parentId } = req.body;
 
   try {
-    // 게시물 확인
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
-    // 사용자 확인
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // 댓글 생성
     const newComment = new Comment({
       postId,
       userId,
       content,
-      parentId: parentId || null  // 부모 댓글이 없는 경우 null로 설정
+      parentId: parentId || null,
     });
 
-    // 댓글 저장
     await newComment.save();
+
+      // 게시글 작성자에게 알림 전송
+    if (!parentId) {
+      const notification = new Notification({
+        user   : post.user_id._id,
+        type   : 'comment',
+        message: `${user.name}님이 당신의 게시글에 댓글을 남겼습니다.`,
+      });
+      await notification.save();
+    } else {
+        // 부모 댓글 작성자에게 대댓글 알림 전송
+      const parentComment = await Comment.findById(parentId).populate('userId');
+      const notification  = new Notification({
+        user   : parentComment.userId._id,
+        type   : 'reply',
+        message: `${user.name}님이 당신의 댓글에 답글을 남겼습니다.`,
+      });
+      await notification.save();
+    }
+
     res.status(201).json({ message: 'Comment created successfully', comment: newComment });
   } catch (error) {
     console.error('Error creating comment:', error);
@@ -275,6 +307,18 @@ app.get('/api/posts/:postId/comments', async (req, res) => {
   }
 });
 
+  // 알림 조회 라우트
+app.get('/api/notifications/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const notifications = await Notification.find({ user: userId }).sort({ createdAt: -1 });
+    res.status(200).json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Error fetching notifications' });
+  }
+});
 
 // 구독 생성 라우트
 router.post('/api/subscribe', async (req, res) => {
