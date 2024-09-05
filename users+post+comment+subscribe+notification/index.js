@@ -363,9 +363,8 @@ router.delete('/api/unsubscribe', async (req, res) => {
   }
 });
 
-module.exports  = router;
 
-// 구독자 조회 라우트
+// 구독자 목록 조회 라우트
 router.get('/api/subscribers/:userId', async (req, res) => {
   const { userId } = req.params;
 
@@ -378,6 +377,31 @@ router.get('/api/subscribers/:userId', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+//알림 조회
+router.get('/api/notifications/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const notifications = await Notification.find({ user: userId }).sort({ createdAt: -1 });
+    res.status(200).json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Error fetching notifications' });
+  }
+});
+
+// 알림 읽음 상태 업데이트
+router.put('/api/notifications/:notificationId/read', async (req, res) => {
+  const { notificationId } = req.params;
+
+  try {
+    const notification = await Notification.findByIdAndUpdate(notificationId, { isRead: true }, { new: true });
+    if (!notification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+    res.status(200).json({ message: 'Notification marked as read', notification });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ message: 'Error marking notification as read' });
+  }
 });
