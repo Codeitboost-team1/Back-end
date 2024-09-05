@@ -529,7 +529,6 @@ mongoose.connect(process.env.DATABASE_URL, {
       console.error('Could not connect to MongoDB Atlas', err);
     });
   
-  const express = require('express');
   const app = express();
   const port = process.env.PORT || 3000;
   
@@ -737,32 +736,52 @@ app.post('/api/posts/:id/like', async (req, res) => {
   }
 });
 
-// 댓글 작성 라우트
-app.post('/api/posts/:postId/comments', async (req, res) => {
-  const { postId } = req.params;
-  const { userId, content, parentId } = req.body;
-
-  try {
-    const post = await Post.findById(postId);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const newComment = new Comment({
-      postId,
-      userId,
-      content,
-      parentId: parentId || null
-    });
-
-    await newComment.save();
-    res.status(201).json({ message: 'Comment added successfully', comment: newComment });
-  } catch (error) {
-    console.error('Error adding comment:', error);
-    res.status(500).json({ message: 'Error adding comment' });
-  }
-});
+  // 댓글 작성 라우트
+  app.post('/api/posts/:postId/comments', async (req, res) => {
+    const { postId }                    = req.params;
+    const { userId, content, parentId } = req.body;
+  
+    try {
+      const post = await Post.findById(postId);
+      if (!post) return res.status(404).json({ message: 'Post not found' });
+  
+      const user = await User.findById(userId);
+      if (!user) return res.status(404).json({ message: 'User not found' });
+  
+      const newComment = new Comment({
+        postId,
+        userId,
+        content,
+        parentId: parentId || null,
+      });
+  
+      await newComment.save();
+  
+        // 게시글 작성자에게 알림 전송
+      if (!parentId) {
+        const notification = new Notification({
+          user   : post.user_id._id,
+          type   : 'comment',
+          message: `${user.name}님이 당신의 게시글에 댓글을 남겼습니다.`,
+        });
+        await notification.save();
+      } else {
+          // 부모 댓글 작성자에게 대댓글 알림 전송
+        const parentComment = await Comment.findById(parentId).populate('userId');
+        const notification  = new Notification({
+          user   : parentComment.userId._id,
+          type   : 'reply',
+          message: `${user.name}님이 당신의 댓글에 답글을 남겼습니다.`,
+        });
+        await notification.save();
+      }
+  
+      res.status(201).json({ message: 'Comment created successfully', comment: newComment });
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      res.status(500).json({ message: 'Error creating comment' });
+    }
+  });
 
 // 댓글 조회 라우트
 app.get('/api/posts/:postId/comments', async (req, res) => {
@@ -845,6 +864,48 @@ app.post('/api/users/:userId/unsubscribe', async (req, res) => {
     console.error('Error unsubscribing:', error);
     res.status(500).json({ message: 'Error unsubscribing' });
   }
+});
+
+// 구독자 목록 조회 라우트
+app.get('/api/subscribers/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const subscribers = await Subscription.find({ following_id: userId }).populate('follower_id', 'name email');
+        res.status(200).json(subscribers);
+    } catch (error) {
+        console.error('Error fetching subscribers:', error);
+        res.status(500).json({ message: 'Error fetching subscribers' });
+    }
+});
+
+// 알림 조회
+app.get('/api/notifications/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const notifications = await Notification.find({ user: userId }).sort({ createdAt: -1 });
+        res.status(200).json(notifications);
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ message: 'Error fetching notifications' });
+    }
+});
+
+// 알림 읽음 상태 업데이트
+app.put('/api/notifications/:notificationId/read', async (req, res) => {
+    const { notificationId } = req.params;
+
+    try {
+        const notification = await Notification.findByIdAndUpdate(notificationId, { isRead: true }, { new: true });
+        if (!notification) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+        res.status(200).json({ message: 'Notification marked as read', notification });
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+        res.status(500).json({ message: 'Error marking notification as read' });
+    }
 });
 
 // 서버 시작
