@@ -1,14 +1,16 @@
 const mongoose = require('mongoose');
 
 const postSchema = new mongoose.Schema({
-  title          : {type: String, required: true},
-  content        : { type: String, required: true },
-  image_name     : { type: String, required: false, maxlength: 50 },                        // Image field with max length constraint
-  memory_timeline: { type: Number, required: false },                                       // Assuming it’s an integer field for memory duration
-  bgm            : { type: String, required: false },                                       // Assuming background music as a string (file path or name)
-  user_id        : { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },   // Foreign key referencing User
-  createdAt      : { type: Date, default: Date.now },                                        // Timestamp of post creation
-  likes: { type: Number, default: 0 } // 필드 추가: 좋아요 수
+  title          : { type: String, required: true },                                        // 필수 입력 사항
+  content        : { type: String, required: true },                                        // 필수 입력 사항
+  image_name     : { type: String, required: false, maxlength: 50 },                        // 선택 사항, 최대 길이 50자
+  memory_timeline: { type: Number, required: false },                                       // 선택 사항, 숫자형 필드
+  user_id        : { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },   // 필수 입력 사항, 외래키
+  createdAt      : { type: Date, default: Date.now },                                       // 생성일시, 기본값 현재 시간
+  likes          : { type: Number, default: 0 },                                            // 선택 사항, 기본값 0
+  tags           : { type: [String], required: false },                                     // 선택 사항, 문자열 배열
+  location       : { type: String, required: false },                                       // 선택 사항, 문자열형 필드
+  date_recorded  : { type: Date, required: false }                                          // 선택 사항, 날짜형 필드
 });
 
 const Post = mongoose.model('Post', postSchema);

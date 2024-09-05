@@ -81,7 +81,8 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// 로그인 라우트
+  //로그인 라우트
+
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -95,6 +96,10 @@ app.post('/api/login', async (req, res) => {
     // JWT 생성
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
+    // 로그인 상태 업데이트
+    user.isLoggedIn = true;
+    await user.save();
+
     res.status(200).json({
       message: "User logged in successfully",
       token // JWT를 응답으로 반환
@@ -105,28 +110,42 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+
 // 게시글 작성 라우트
 app.post('/api/posts', authenticateJWT, async (req, res) => {
-  const { title, content, image_name, memory_timeline, bgm, userId } = req.body;
+  const {
+    title,
+    content,
+    image_name,
+    memory_timeline,
+    tags         ,  // 선택적 필드
+    location     ,  // 선택적 필드
+    date_recorded,  // 선택적 필드
+    userId
+  } = req.body;
 
   try {
-    // 인증된 사용자의 ID와 요청 본문의 userId가 일치하는지 확인
+      // 인증된 사용자의 ID와 요청 본문의 userId가 일치하는지 확인
     if (req.user.id !== userId) return res.status(403).json({ message: "Forbidden: Invalid user" });
 
     const author = await User.findById(userId);
     if (!author) return res.status(400).json({ message: "Invalid author ID" });
 
+      // 새로운 게시글 객체 생성
     const newPost = new Post({
       title,
       content,
       image_name,
       memory_timeline,
-      bgm,
-      user_id: userId
+      user_id: userId,
+      tags    ,               // 선택적 필드
+      location,               // 선택적 필드
+      date_recorded  // 선택적 필드
     });
 
     await newPost.save();
 
+      // 구독자들에게 새 게시글 알림 전송
     const subscribers = await Subscription.find({ following_id: userId }).populate('follower_id');
     subscribers.forEach(async (subscription) => {
       const notification = new Notification({
@@ -143,6 +162,7 @@ app.post('/api/posts', authenticateJWT, async (req, res) => {
     res.status(500).json({ message: 'Error creating post' });
   }
 });
+
 
 // 게시글 조회 라우트
 app.get('/api/posts/:id', authenticateJWT, async (req, res) => {
