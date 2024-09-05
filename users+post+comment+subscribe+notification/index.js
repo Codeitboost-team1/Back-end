@@ -405,3 +405,7 @@ router.put('/api/notifications/:notificationId/read', async (req, res) => {
     res.status(500).json({ message: 'Error marking notification as read' });
   }
 });
+
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
