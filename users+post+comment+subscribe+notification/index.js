@@ -1,4 +1,9 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const mongoose = require('mongoose');
+
+const cors = require('cors');
 
 // MongoDB 연결 설정
 mongoose.connect('mongodb://localhost:27017/piecehouseDB')
@@ -18,9 +23,10 @@ const PostLike = require('./models/Post_like');
 const Comment  = require('./models/Comment');
 const Subscription = require('./models/Subscription');
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-// JSON 파싱을 위한 미들웨어
+  // JSON 파싱을 위한 미들웨어
+app.use(cors());
 app.use(express.json());
 app.use(router);
 
