@@ -41,7 +41,7 @@ app.post('/api/register', async (req, res) => {
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('Email already exists'); // 로그 추가
+      console.log('Email already exists');  // 로그 추가
       return res.status(400).json({ message: 'Email already exists' });
     }
 
