@@ -602,17 +602,19 @@ app.post('/api/login', async (req, res) => {
 
     res.status(200).json({
       message: "User logged in successfully",
-      token // JWT를 응답으로 반환
+      token,  // JWT 반환
+      userId: user._id  // 사용자 ID도 함께 반환
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error logging in user:', error);
     res.status(500).json({ message: 'Error logging in user' });
   }
 });
 
+
 // 게시글 작성 라우트
 app.post('/api/posts', authenticateJWT, async (req, res) => {
-  const { title, content, image_name, memory_timeline, bgm, userId } = req.body;
+  const { title, content, image_name, location, date, tags, userId } = req.body;
 
   try {
     // 인증된 사용자의 ID와 요청 본문의 userId가 일치하는지 확인
@@ -625,8 +627,9 @@ app.post('/api/posts', authenticateJWT, async (req, res) => {
       title,
       content,
       image_name,
-      memory_timeline,
-      bgm,
+      location, // 장소
+      date,     // 날짜
+      tags,     // 태그 배열
       user_id: userId
     });
 
