@@ -552,7 +552,7 @@ const authenticateJWT = (req, res, next) => {
 
 // 회원가입 라우트
 app.post('/api/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { username, name, email, password, memoryBoxName } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -565,13 +565,16 @@ app.post('/api/register', async (req, res) => {
       console.error('Password is missing');
       return res.status(400).json({ message: 'Password is required' });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log('Password hashed successfully'); // 로그 추가
 
     const newUser = new User({
+      username, // 추가
       name,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      memoryBoxName // 추가
     });
 
     await newUser.save();
