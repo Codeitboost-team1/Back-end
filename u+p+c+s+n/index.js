@@ -180,14 +180,14 @@ app.post('/api/posts', authenticateJWT, async (req, res) => {
   //게시글 상세 조회 라우트
   app.get('/api/posts/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
-    console.log('서버에서 받은 요청 ID:', id); // 요청 ID 확인
+    console.log('서버에서 받은 postId:', id); // 서버에서 받은 postId 로그
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ message: '잘못된 ID 형식입니다.' });
     }
 
     try {
-        const post = await Post.findById(_id);
+        const post = await Post.findById(id);
         if (!post) {
             return res.status(404).json({ message: '게시물을 찾을 수 없습니다.' });
         }
